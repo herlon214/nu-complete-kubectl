@@ -1,19 +1,22 @@
-# Kubectl
-# def "nu-complete kubectl" [] {
-#     ^kubectl | lines | find "  " | str trim | parse "{command} {help}" | str trim | where command != "kubectl" | get command
-# }
-
-# Kubectl
-# export extern "kubectl" [
-#   command?: string@"nu-complete kubectl"
-# ]
-
-
 # Utility functions
-def resource-items [resource: string] {
-    ^kubectl get $resource -o name | lines | skip 1 | split column "/" | get column2 | str trim
+def resource-items [resource: string, ns: string] {
+    if ($ns | str length) == 0 {
+        ^kubectl get $resource -o name | lines | skip 1 | split column "/" | get column2 | str trim
+    } else {
+        ^kubectl -n $ns get $resource -o name | lines | skip 1 | split column "/" | get column2 | str trim
+    }
 }
 
+def namespace [line:string] {
+    $line | parse -r "(?P<n>-n [a-zA-Z-0-9]+)|(?P<namespace>--namespace [a-zA-Z-0-9]+)"
+    | each { |it| $"($it.n)($it.namespace)" }
+    | str find-replace "-n " "" | str find-replace "--namespace" ""
+}
+
+# Namespace
+def "nu-complete kubectl namespace" [line: string, pos: int] {
+    resource-items namespace ""
+}
 
 # Logs
 def "nu-complete kubectl logs" [] {
@@ -48,14 +51,24 @@ export extern "kubectl logs" [
     --timestamps: bool # Include timestamps on each line in the log output
 ]
 
-# Namespaces
-def "nu-complete kubectl get namespace" [] {
-    resource-items namespace
+# Resources
+def "nu-complete kubectl resources" [line: string, pos: int] {
+    ^kubectl api-resources | lines | skip 1 | parse -r "^([a-z]+) " | get Capture1
+}
+export extern "kubectl describe" {
+    resource?: string@"nu-complete kubectl describe"
 }
 
 # Services
-def "nu-complete kubectl get svc" [...args] {
-    resource-items svc
+def "nu-complete kubectl get svc" [line: string, pos: int] {
+    # resource-items svc ""
+    let queryns = namespace $line
+    [ $queryns ]
+    # if (queryns | str length) > 0 {
+    #     resource-items svc $queryns
+    # } else {
+    #     resource-items svc ""
+    # }
 }
 export extern "kubectl get svc" [
     name?: string@"nu-complete kubectl get svc" # Target service
@@ -65,5 +78,21 @@ export extern "kubectl get svc" [
     # [http://golang.org/pkg/text/template/#pkg-overview] and jsonpath template
     # [https://kubernetes.io/docs/reference/kubectl/jsonpath/].
 
-    --namespace(-n): string@"nu-complete kubectl get namespace"
+    --namespace(-n): string@"nu-complete kubectl namespace"
+]
+
+export extern "kubectl get" [
+    resource: string@"nu-complete kubectl resources"
+]
+
+# Kubectl
+def "nu-complete kubectl" [] {
+    ^kubectl | lines | find "  " | str trim | parse "{command} {help}" | str trim | where command != "kubectl" | get command
+}
+
+# Kubectl
+export extern "kubectl" [
+  command: string@"nu-complete kubectl"
+  resource: string
+  --namespace(-n): string@"nu-complete kubectl namespace"
 ]
