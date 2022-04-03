@@ -3,43 +3,22 @@
 #     ^kubectl | lines | find "  " | str trim | parse "{command} {help}" | str trim | where command != "kubectl" | get command
 # }
 
-# Logs
-def "nu-complete kubectl logs" [] {
-    ^kubectl get po,deployment,job -o name | lines | str trim
-}
-
-# Services
-def "nu-complete kubectl get svc" [] {
-    nu-complete kubectl get-resource svc
-}
-
-
-def "nu-complete kubectl get-resource" [resource: string] {
-    ^kubectl get $resource -o name | lines | skip 1 | split column "/" | get column2 | str trim
-}
-
-
 # Kubectl
 # export extern "kubectl" [
 #   command?: string@"nu-complete kubectl"
 # ]
 
-# Get
-# export extern "kubectl get" [
-#     resource?: string@"nu-complete kubectl get" # Target resource
-#     name?: string@"nu-complete kubectl get-resource" # Target name
-# ]
 
-export extern "kubectl get svc" [
-    name?: string@"nu-complete kubectl get svc" # Target service
-    --output(-o): string #  Output format. One of:
-    # json|yaml|name|go-template|go-template-file|template|templatefile|jsonpath|jsonpath-as-json|jsonpath-file|custom-columns-file|custom-columns|wide
-    # See custom columns [https://kubernetes.io/docs/reference/kubectl/overview/#custom-columns], golang template
-    # [http://golang.org/pkg/text/template/#pkg-overview] and jsonpath template
-    # [https://kubernetes.io/docs/reference/kubectl/jsonpath/].
-]
+# Utility functions
+def resource-items [resource: string] {
+    ^kubectl get $resource -o name | lines | skip 1 | split column "/" | get column2 | str trim
+}
+
 
 # Logs
+def "nu-complete kubectl logs" [] {
+    ^kubectl get po,deployment,job -o name | lines | str trim
+}
 export extern "kubectl logs" [
     target?: string@"nu-complete kubectl logs" # Target
     --container(-c): string # Print the logs of this container
@@ -67,4 +46,24 @@ export extern "kubectl logs" [
     # 10, if a selector is provided.
 
     --timestamps: bool # Include timestamps on each line in the log output
+]
+
+# Namespaces
+def "nu-complete kubectl get namespace" [] {
+    resource-items namespace
+}
+
+# Services
+def "nu-complete kubectl get svc" [...args] {
+    resource-items svc
+}
+export extern "kubectl get svc" [
+    name?: string@"nu-complete kubectl get svc" # Target service
+    --output(-o): string #  Output format. One of:
+    # json|yaml|name|go-template|go-template-file|template|templatefile|jsonpath|jsonpath-as-json|jsonpath-file|custom-columns-file|custom-columns|wide
+    # See custom columns [https://kubernetes.io/docs/reference/kubectl/overview/#custom-columns], golang template
+    # [http://golang.org/pkg/text/template/#pkg-overview] and jsonpath template
+    # [https://kubernetes.io/docs/reference/kubectl/jsonpath/].
+
+    --namespace(-n): string@"nu-complete kubectl get namespace"
 ]
