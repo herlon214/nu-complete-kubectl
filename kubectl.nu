@@ -1,10 +1,16 @@
 # Utility functions
-def resource-items [resource: string, ns: string] {
+def resource-items [resource: string, fullcmd: string] {
+    let ns = namespace $fullcmd
+
     if ($ns | str length) == 0 {
-        ^kubectl get $resource -o name | lines | skip 1 | split column "/" | get column2 | str trim
+        ^kubectl get $resource -o name | lines | split column "/" | get column2 | str trim
     } else {
-        ^kubectl -n $ns get $resource -o name | lines | skip 1 | split column "/" | get column2 | str trim
+        ^kubectl -n $ns get $resource -o name | lines | split column "/" | get column2 | str trim
     }
+}
+
+def finalword [words: string] {
+    words | split row " " | last
 }
 
 def namespace [line:string] {
@@ -55,44 +61,28 @@ export extern "kubectl logs" [
 def "nu-complete kubectl resources" [line: string, pos: int] {
     ^kubectl api-resources | lines | skip 1 | parse -r "^([a-z]+) " | get Capture1
 }
-export extern "kubectl describe" {
-    resource?: string@"nu-complete kubectl describe"
-}
-
-# Services
-def "nu-complete kubectl get svc" [line: string, pos: int] {
-    # resource-items svc ""
-    let queryns = namespace $line
-    [ $queryns ]
-    # if (queryns | str length) > 0 {
-    #     resource-items svc $queryns
-    # } else {
-    #     resource-items svc ""
-    # }
-}
-export extern "kubectl get svc" [
-    name?: string@"nu-complete kubectl get svc" # Target service
-    --output(-o): string #  Output format. One of:
-    # json|yaml|name|go-template|go-template-file|template|templatefile|jsonpath|jsonpath-as-json|jsonpath-file|custom-columns-file|custom-columns|wide
-    # See custom columns [https://kubernetes.io/docs/reference/kubectl/overview/#custom-columns], golang template
-    # [http://golang.org/pkg/text/template/#pkg-overview] and jsonpath template
-    # [https://kubernetes.io/docs/reference/kubectl/jsonpath/].
-
-    --namespace(-n): string@"nu-complete kubectl namespace"
-]
-
-export extern "kubectl get" [
-    resource: string@"nu-complete kubectl resources"
-]
 
 # Kubectl
 def "nu-complete kubectl" [] {
     ^kubectl | lines | find "  " | str trim | parse "{command} {help}" | str trim | where command != "kubectl" | get command
 }
 
+def "nu-complete kubectl resource names" [line: string, pos: int] {
+
+    resource-items ( $line | split row " " | last ) $line
+
+    # if (queryns | str length) > 0 {
+    #     resource-items $resource $queryns
+    # } else {
+    #     resource-items $resource ""
+    # }
+}
+
 # Kubectl
 export extern "kubectl" [
-  command: string@"nu-complete kubectl"
-  resource: string
+  command?: string@"nu-complete kubectl"
+  resource?: string@"nu-complete kubectl resources"
+  name?: string@"nu-complete kubectl resource names"
   --namespace(-n): string@"nu-complete kubectl namespace"
+  -A
 ]
